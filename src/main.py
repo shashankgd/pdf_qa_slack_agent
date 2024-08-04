@@ -38,7 +38,7 @@ def get_openai_embedding(text):
         model="text-embedding-ada-002",
         input=[text]
     )
-    return np.array(response.data[0].embedding, dtype=np.float32)
+    return np.array(response['data'][0]['embedding'], dtype=np.float32)
 
 def ask_openai(question, context):
     try:
@@ -49,11 +49,47 @@ def ask_openai(question, context):
                 {"role": "user", "content": f"Context: {context}\n\nQuestion: {question}"}
             ]
         )
-        answer = response.choices[0].message.content.strip()
+        answer = response['choices'][0]['message']['content'].strip()
         return answer
     except Exception as e:
         logging.error(f"Error calling OpenAI API: {e}")
         raise
+
+def summarize_text(text):
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
+            ],
+            max_tokens=1000  # Adjust the max tokens as needed
+        )
+        summary = response.choices[0].message.content.strip()
+        return summary
+    except Exception as e:
+        logging.error(f"Error summarizing text with OpenAI API: {e}")
+        raise
+
+def split_text(text, max_tokens):
+    words = text.split()
+    current_chunk = []
+    current_length = 0
+    chunks = []
+
+    for word in words:
+        current_length += len(word) + 1  # Add 1 for the space
+        if current_length > max_tokens:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = [word]
+            current_length = len(word) + 1
+        else:
+            current_chunk.append(word)
+
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
+    return chunks
 
 def post_to_slack(webhook_url, message):
     try:
@@ -73,6 +109,11 @@ def post_to_slack(webhook_url, message):
 def main(pdf_path, questions):
     try:
         context = extract_text_from_pdf(pdf_path)
+        context_chunks = split_text(context, 1000)  # Split the context into chunks of 1000 tokens each
+
+        summarized_contexts = [summarize_text(chunk) for chunk in context_chunks]
+        combined_summary = " ".join(summarized_contexts)
+
         results = {}
         formatted_results = "Results:\n"
         for question in questions:
@@ -84,12 +125,12 @@ def main(pdf_path, questions):
                     answer = questions_answers[I[0][0]]
                     logging.info("Answer found in cache.")
                 else:
-                    answer = ask_openai(question, context)
+                    answer = ask_openai(question, combined_summary)
                     index.add(np.array([question_embedding]))
                     questions_answers[index.ntotal - 1] = answer
                     logging.info("New Q&A added to cache.")
             else:
-                answer = ask_openai(question, context)
+                answer = ask_openai(question, combined_summary)
                 index.add(np.array([question_embedding]))
                 questions_answers[index.ntotal - 1] = answer
                 logging.info("First Q&A added to cache.")
