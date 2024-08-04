@@ -43,7 +43,7 @@ def get_openai_embedding(text):
 def ask_openai(question, context):
     try:
         response = openai.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": f"Context: {context}\n\nQuestion: {question}"}
