@@ -38,12 +38,11 @@ def get_openai_embedding(text):
         model="text-embedding-ada-002",
         input=[text]
     )
-    print(response)
-    return np.array(response['data'][0]['embedding'], dtype=np.float32)
+    return np.array(response.data[0].embedding, dtype=np.float32)
 
 def ask_openai(question, context):
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
