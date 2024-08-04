@@ -1,6 +1,6 @@
 import logging
 import argparse
-from ai_agent import main as ai_agent_main
+from src.ai_agent import main as ai_agent_main
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

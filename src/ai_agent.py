@@ -1,8 +1,8 @@
 import logging
-from ocr import extract_text_from_pdf
-from openai_api import ask_openai
-from slack_api import post_to_slack
-from config import slack_webhook_url
+from src.ocr import extract_text_from_pdf
+from src.openai_api import ask_openai
+from src.slack_api import post_to_slack
+from src.config import slack_webhook_url
 
 def main(pdf_path, questions):
     try:

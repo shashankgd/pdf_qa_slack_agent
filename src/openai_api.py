@@ -1,6 +1,6 @@
 import logging
 import openai
-from config import openai_api_key
+from src.config import openai_api_key
 
 # Set OpenAI API key
 openai.api_key = openai_api_key
