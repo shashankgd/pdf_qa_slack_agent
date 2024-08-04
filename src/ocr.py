@@ -1,11 +1,15 @@
-# src/ocr.py
-
-from pdf2image import convert_from_path
-import pytesseract
+import logging
+from PyPDF2 import PdfReader
 
 def extract_text_from_pdf(pdf_path):
-    images = convert_from_path(pdf_path)
-    text = ""
-    for image in images:
-        text += pytesseract.image_to_string(image)
-    return text
+    try:
+        logging.info(f"Extracting text from PDF: {pdf_path}")
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
+        logging.info("Successfully extracted text from PDF.")
+        return text
+    except Exception as e:
+        logging.error(f"Error extracting text from PDF: {e}")
+        raise

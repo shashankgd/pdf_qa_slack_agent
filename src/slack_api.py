@@ -1,15 +1,20 @@
-# src/slack_api.py
+import logging
+import requests
+import json
 
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-from .config import SLACK_BOT_TOKEN
-
-client = WebClient(token=SLACK_BOT_TOKEN)
-
-def post_to_slack(channel, message):
+def post_to_slack(webhook_url, message):
     try:
-        print(message)
-        # response = client.chat_postMessage(channel=channel, text=message)
-        # assert response["ok"]
-    except SlackApiError as e:
-        print(f"Error posting to Slack: {e.response['error']}")
+        logging.info("Posting message to Slack.")
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        payload = {
+            'text': message
+        }
+        response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+        if response.status_code != 200:
+            raise ValueError(f"Request to Slack returned an error {response.status_code}, the response is:\n{response.text}")
+        logging.info("Successfully posted message to Slack.")
+    except Exception as e:
+        logging.error(f"Error posting to Slack: {e}")
+        raise
