@@ -24,24 +24,34 @@ questions_answers = {}  # Store the actual question-answer pairs
 
 def extract_text_from_pdf(pdf_path):
     try:
+        logging.info(f"Extracting text from PDF: {pdf_path}")
         reader = PdfReader(pdf_path)
         text = ""
         for page in reader.pages:
             text += page.extract_text()
+        logging.info("Successfully extracted text from PDF.")
         return text
     except Exception as e:
         logging.error(f"Error extracting text from PDF: {e}")
         raise
 
 def get_openai_embedding(text):
-    response = openai.embeddings.create(
-        model="text-embedding-ada-002",
-        input=[text]
-    )
-    return np.array(response['data'][0]['embedding'], dtype=np.float32)
+    try:
+        logging.info("Generating embedding for text.")
+        response = openai.embeddings.create(
+            model="text-embedding-ada-002",
+            input=[text]
+        )
+        embedding = np.array(response['data'][0]['embedding'], dtype=np.float32)
+        logging.info("Successfully generated embedding.")
+        return embedding
+    except Exception as e:
+        logging.error(f"Error generating embedding: {e}")
+        raise
 
 def ask_openai(question, context):
     try:
+        logging.info(f"Asking OpenAI: {question}")
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -50,6 +60,7 @@ def ask_openai(question, context):
             ]
         )
         answer = response['choices'][0]['message']['content'].strip()
+        logging.info("Successfully received answer from OpenAI.")
         return answer
     except Exception as e:
         logging.error(f"Error calling OpenAI API: {e}")
@@ -57,8 +68,9 @@ def ask_openai(question, context):
 
 def summarize_text(text):
     try:
+        logging.info("Summarizing text.")
         response = openai.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
@@ -66,12 +78,14 @@ def summarize_text(text):
             max_tokens=1000  # Adjust the max tokens as needed
         )
         summary = response.choices[0].message.content.strip()
+        logging.info("Successfully summarized text.")
         return summary
     except Exception as e:
         logging.error(f"Error summarizing text with OpenAI API: {e}")
         raise
 
 def split_text(text, max_tokens):
+    logging.info("Splitting text into chunks.")
     words = text.split()
     current_chunk = []
     current_length = 0
@@ -89,10 +103,12 @@ def split_text(text, max_tokens):
     if current_chunk:
         chunks.append(" ".join(current_chunk))
 
+    logging.info(f"Split text into {len(chunks)} chunks.")
     return chunks
 
 def post_to_slack(webhook_url, message):
     try:
+        logging.info("Posting message to Slack.")
         headers = {
             'Content-Type': 'application/json'
         }
@@ -102,6 +118,7 @@ def post_to_slack(webhook_url, message):
         response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
         if response.status_code != 200:
             raise ValueError(f"Request to Slack returned an error {response.status_code}, the response is:\n{response.text}")
+        logging.info("Successfully posted message to Slack.")
     except Exception as e:
         logging.error(f"Error posting to Slack: {e}")
         raise
@@ -111,12 +128,14 @@ def main(pdf_path, questions):
         context = extract_text_from_pdf(pdf_path)
         context_chunks = split_text(context, 1000)  # Split the context into chunks of 1000 tokens each
 
+        logging.info("Generating summarized context.")
         summarized_contexts = [summarize_text(chunk) for chunk in context_chunks]
         combined_summary = " ".join(summarized_contexts)
 
         results = {}
         formatted_results = "Results:\n"
         for question in questions:
+            logging.info(f"Processing question: {question}")
             question_embedding = get_openai_embedding(question)
 
             if index.ntotal > 0:
@@ -142,7 +161,7 @@ def main(pdf_path, questions):
             formatted_results += f"Question: {question}\nAnswer:\n{answer}\n\n"
 
         # Print the message for debugging
-        print(formatted_results)
+        logging.info("Formatted results:\n" + formatted_results)
 
         post_to_slack(slack_webhook_url, formatted_results)
     except Exception as e:
