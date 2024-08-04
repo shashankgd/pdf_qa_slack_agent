@@ -6,13 +6,21 @@ import requests
 import json
 import logging
 import argparse
+import faiss
+import numpy as np
 
 from config import openai_api_key, slack_webhook_url
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Set OpenAI API key
+openai.api_key = openai_api_key
+
+# Initialize FAISS index
+dimension = 1536  # Adjust according to the model's embedding dimension
+index = faiss.IndexFlatL2(dimension)
+questions_answers = {}  # Store the actual question-answer pairs
 
 def extract_text_from_pdf(pdf_path):
     try:
@@ -25,10 +33,18 @@ def extract_text_from_pdf(pdf_path):
         logging.error(f"Error extracting text from PDF: {e}")
         raise
 
+def get_openai_embedding(text):
+    response = openai.embeddings.create(
+        model="text-embedding-ada-002",
+        input=[text]
+    )
+    print(response)
+    return np.array(response['data'][0]['embedding'], dtype=np.float32)
+
 def ask_openai(question, context):
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": f"Context: {context}\n\nQuestion: {question}"}
@@ -61,9 +77,27 @@ def main(pdf_path, questions):
         results = {}
         formatted_results = "Results:\n"
         for question in questions:
-            answer = ask_openai(question, context)
+            question_embedding = get_openai_embedding(question)
+
+            if index.ntotal > 0:
+                _, I = index.search(np.array([question_embedding]), k=1)
+                if I[0][0] < len(questions_answers):
+                    answer = questions_answers[I[0][0]]
+                    logging.info("Answer found in cache.")
+                else:
+                    answer = ask_openai(question, context)
+                    index.add(np.array([question_embedding]))
+                    questions_answers[index.ntotal - 1] = answer
+                    logging.info("New Q&A added to cache.")
+            else:
+                answer = ask_openai(question, context)
+                index.add(np.array([question_embedding]))
+                questions_answers[index.ntotal - 1] = answer
+                logging.info("First Q&A added to cache.")
+
             if not answer or "Data Not Available" in answer:
                 answer = "Data Not Available"
+
             results[question] = answer
             formatted_results += f"Question: {question}\nAnswer:\n{answer}\n\n"
 
