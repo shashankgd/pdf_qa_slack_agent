@@ -1,47 +1,48 @@
 # main.py
 import os
 import openai
-from pdf2image import convert_from_path
-import pytesseract
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
+from PyPDF2 import PdfReader
+import requests
 import json
 from dotenv import load_dotenv
+import argparse
 
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-slack_token = os.getenv("SLACK_BOT_TOKEN")
-client = WebClient(token=slack_token)
+slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
 
 def extract_text_from_pdf(pdf_path):
-    images = convert_from_path(pdf_path)
+    reader = PdfReader(pdf_path)
     text = ""
-    for image in images:
-        text += pytesseract.image_to_string(image)
+    for page in reader.pages:
+        text += page.extract_text()
     return text
 
 def ask_openai(question, context):
-    response = openai.Completion.create(
-        engine="gpt-4o-mini",
-        prompt=f"Context: {context}\n\nQuestion: {question}\n\nAnswer:",
-        max_tokens=100,
-        temperature=0.2,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"Context: {context}\n\nQuestion: {question}"}
+        ]
     )
-    answer = response.choices[0].text.strip()
+    answer = response.choices[0].message.content.strip()
     return answer
 
-def post_to_slack(channel, message):
-    try:
-        response = client.chat_postMessage(channel=channel, text=message)
-        assert response["ok"]
-    except SlackApiError as e:
-        print(f"Error posting to Slack: {e.response['error']}")
+def post_to_slack(webhook_url, message):
+    print(message)
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    payload = {
+        'text': message
+    }
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    if response.status_code != 200:
+        raise ValueError(f"Request to Slack returned an error {response.status_code}, the response is:\n{response.text}")
 
-def main(pdf_path, questions, slack_channel):
+def main(pdf_path, questions):
     context = extract_text_from_pdf(pdf_path)
     results = {}
     for question in questions:
@@ -51,16 +52,18 @@ def main(pdf_path, questions, slack_channel):
         results[question] = answer
 
     results_json = json.dumps(results, indent=4)
-    post_to_slack(slack_channel, f"Results:\n```{results_json}```")
+    post_to_slack(slack_webhook_url, f"Results:\n```{results_json}```")
 
 if __name__ == "__main__":
-    pdf_path = "handbook.pdf"  # Path to the PDF file
-    questions = [
+    parser = argparse.ArgumentParser(description="PDF QA Slack Agent")
+    parser.add_argument("--pdf_path", type=str, default="handbook.pdf", help="Path to the PDF file")
+    parser.add_argument("--questions", nargs="+", default=[
         "What is the name of the company?",
         "Who is the CEO of the company?",
         "What is their vacation policy?",
         "What is the termination policy?"
-    ]  # Example questions
-    slack_channel = "#general"  # Slack channel to post the results
+    ], help="List of questions to ask")
 
-    main(pdf_path, questions, slack_channel)
+    args = parser.parse_args()
+
+    main(args.pdf_path, args.questions)

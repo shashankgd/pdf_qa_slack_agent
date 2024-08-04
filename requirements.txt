@@ -1,6 +1,6 @@
 langchain
 openai
-pdf2image
+pypdf2
 pytesseract
 python-dotenv
 slack_sdk

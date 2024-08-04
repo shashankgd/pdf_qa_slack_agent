@@ -8,7 +8,8 @@ client = WebClient(token=SLACK_BOT_TOKEN)
 
 def post_to_slack(channel, message):
     try:
-        response = client.chat_postMessage(channel=channel, text=message)
-        assert response["ok"]
+        print(message)
+        # response = client.chat_postMessage(channel=channel, text=message)
+        # assert response["ok"]
     except SlackApiError as e:
         print(f"Error posting to Slack: {e.response['error']}")
