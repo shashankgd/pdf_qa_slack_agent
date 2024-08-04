@@ -1,0 +1,6 @@
+langchain
+openai
+pdf2image
+pytesseract
+python-dotenv
+slack_sdk
