@@ -51,8 +51,12 @@ def main(pdf_path, questions):
             answer = "Data Not Available"
         results[question] = answer
 
-    results_json = json.dumps(results, indent=4)
-    post_to_slack(slack_webhook_url, f"Results:\n```{results_json}```")
+    results_json = json.dumps(results,
+                              indent=4,
+                              ensure_ascii=False
+                              )
+    formatted_message = f"Results:\n```{results_json}```"
+    post_to_slack(slack_webhook_url, formatted_message)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PDF QA Slack Agent")
